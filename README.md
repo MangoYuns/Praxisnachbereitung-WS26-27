@@ -28,3 +28,4 @@ Teilweise fiehl uns die Navigation in Excel schwer.
 
 Erkenntnisse:
 Excel reagiert nicht immer so wie es zu erwarten ist.
+
