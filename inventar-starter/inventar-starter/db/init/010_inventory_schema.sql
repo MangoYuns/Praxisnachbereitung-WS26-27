@@ -1,9 +1,5 @@
--- Aufgabe D: Inventar-Schema mit Beispieldaten.
--- PostgreSQL führt diese Datei beim Initialisieren einer neuen Datenbank aus.
--- BEGIN / COMMIT: Schema und Seed-Daten werden gemeinsam gespeichert.
 BEGIN;
 
--- 1. Stammdaten: Abteilungen, Personen, Gerätetypen und Standorte.
 CREATE TABLE department (
     department_id serial PRIMARY KEY,
     name text NOT NULL UNIQUE CHECK (btrim(name) <> '')
@@ -27,7 +23,6 @@ CREATE TABLE location (
     name text NOT NULL UNIQUE
 );
 
--- 2. Jedes Gerät hat einen Typ, einen Standort und eine eindeutige Seriennummer.
 CREATE TABLE device (
     device_id serial PRIMARY KEY,
     serial_number text NOT NULL,
@@ -42,8 +37,6 @@ CREATE TABLE device (
     )
 );
 
--- 3. Eine Ausleihe verbindet ein Gerät mit einer Person.
--- returned_at bleibt NULL, solange das Gerät noch ausgeliehen ist.
 CREATE TABLE assignment (
     assignment_id serial PRIMARY KEY,
     device_id integer NOT NULL REFERENCES device(device_id),
@@ -55,13 +48,10 @@ CREATE TABLE assignment (
     )
 );
 
--- Pro Gerät ist höchstens eine offene Ausleihe erlaubt.
--- Abgeschlossene Ausleihen werden vom Index nicht erfasst.
 CREATE UNIQUE INDEX assignment_one_active_device
     ON assignment(device_id)
     WHERE returned_at IS NULL;
 
--- 4. Beispieldaten. Die IDs beginnen in der frisch angelegten DB jeweils bei 1.
 INSERT INTO department (name) VALUES
     ('IT'),
     ('Verwaltung');
