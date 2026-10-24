@@ -5,30 +5,145 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ title }}</title>
     <style>
-      :root { font-family: -apple-system, system-ui, Segoe UI, Roboto, Ubuntu, Cantarell, Helvetica, Arial; }
+      :root { font-family: -apple-system, system-ui, Segoe UI, Roboto, Ubuntu, Cantarell, Helvetica, Arial; color: #1f2937; }
+      * { box-sizing: border-box; }
       body { margin: 0; padding: 2rem; background: #f3f4f6; }
-      .card { max-width: 920px; margin: 2rem auto; padding: 2rem; background: white; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.05); }
-      h1, h2 { margin-top: 0; }
-      code { background: #f6f8fa; padding: .15rem .35rem; border-radius: 4px; }
-      ul { padding-left: 1.2rem; }
-      .hint { color: #4b5563; }
-      .box { margin-top: 1.5rem; padding: 1rem 1.25rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #f9fafb; }
+      .card { max-width: 1100px; margin: 1rem auto; padding: 2rem; background: white; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.05); }
+      h1 { margin-top: 0; }
+      h2 { margin-top: 0; font-size: 1.2rem; }
+      a { color: #1d4ed8; }
+      nav { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+      .hint { color: #4b5563; line-height: 1.5; }
+      .forms { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+      .box { margin-top: 1.5rem; padding: 1.25rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #f9fafb; }
+      label { display: block; margin-top: 1rem; font-size: .9rem; }
+      input, select, textarea { display: block; width: 100%; margin-top: .35rem; padding: .55rem .65rem; border: 1px solid #9ca3af; border-radius: 8px; font: inherit; background: white; }
+      button { padding: .6rem 1rem; border: none; border-radius: 8px; background: #2563eb; color: white; font: inherit; cursor: pointer; }
+      form > button { margin-top: 1rem; }
+      button:hover { background: #1d4ed8; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+      th, td { padding: .8rem .6rem; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+      th { background: #f3f4f6; }
+      td form > button { margin-top: 0; white-space: nowrap; }
+      .badge { display: inline-block; padding: .25rem .55rem; border-radius: 20px; background: #e5e7eb; white-space: nowrap; }
+      .free { color: #166534; background: #dcfce7; }
+      .issued { color: #854d0e; background: #fef3c7; }
+      .error { color: #991b1b; line-height: 1.5; }
+      @media (max-width: 750px) { body { padding: .75rem; } .card { padding: 1.25rem; } .forms { grid-template-columns: 1fr; gap: 0; } }
     </style>
   </head>
   <body>
-    <div class="card">
-      <h1>Inventar Starter</h1>
-      <p class="hint">Diese Seite ist bewusst nur ein Platzhalter. Ihr ergänzt hier im Laufe der Übung eure Inventar-Oberfläche.</p>
+    <main class="card">
+      <h1>Inventarverwaltung</h1>
+      <nav><a href="/">Startseite</a><a href="/docs">API-Dokumentation</a><a href="/health">Health</a></nav>
+      <p class="hint">{{ devices|length }} Geräte · {{ available_devices|length }} verfügbar · {{ active_assignments|length }} aktive Ausleihen</p>
+      <noscript><p class="error">Zum Absenden der Formulare muss JavaScript aktiviert sein. Alternativ können die Endpunkte über die API-Dokumentation verwendet werden.</p></noscript>
 
-      <div class="box">
-        <h2>Nächste Schritte</h2>
-        <ul>
-          <li>Ergänzt euer Inventar-Schema in <code>db/init/010_inventory_schema.sql</code>.</li>
-          <li>Legt Endpunkte für <code>/devices</code> und <code>/assignments</code> an.</li>
-          <li>Baut hier eine einfache Übersicht für Geräte und Ausleihen.</li>
-          <li>Nutzt den <code>grades-starter</code> als Referenz für Formulare, Templates und CRUD-Muster.</li>
-        </ul>
+      <div class="forms">
+        <section class="box">
+          <h2>Gerät hinzufügen</h2>
+          <form method="post" action="/devices" data-api>
+            <label>Seriennummer<input name="serial_number" required pattern=".*\S.*" placeholder="z. B. LAP-003" /></label>
+            <label>Typ<select name="device_type_id" required>
+              {% for t in device_types %}<option value="{{ t.device_type_id }}">{{ t.name }}</option>{% else %}<option value="">Keine Gerätetypen vorhanden</option>{% endfor %}
+            </select></label>
+            <label>Standort<select name="location_id" required>
+              {% for l in locations %}<option value="{{ l.location_id }}">{{ l.name }}</option>{% else %}<option value="">Keine Standorte vorhanden</option>{% endfor %}
+            </select></label>
+            <label>Notiz (optional)<textarea name="note" rows="2"></textarea></label>
+            <button {% if not device_types or not locations %}disabled{% endif %}>Gerät speichern</button>
+            <p class="error" role="alert" hidden></p>
+          </form>
+          {% if not device_types or not locations %}<p class="hint">Zum Anlegen müssen Gerätetypen und Standorte in der Datenbank vorhanden sein.</p>{% endif %}
+        </section>
+
+        <section class="box">
+          <h2>Gerät ausgeben</h2>
+          <p class="hint">Es werden nur freie, einsatzbereite Geräte angeboten. Die Ausgabezeit wird automatisch gesetzt.</p>
+          <form method="post" action="/assignments" data-api>
+            <label>Person<select name="person_id" required>
+              {% for p in persons %}<option value="{{ p.person_id }}">{{ p.first_name }} {{ p.last_name }}</option>{% else %}<option value="">Keine Personen vorhanden</option>{% endfor %}
+            </select></label>
+            <label>Gerät<select name="device_id" required>
+              {% for d in available_devices %}<option value="{{ d.device_id }}">{{ d.serial_number }} ({{ d.device_type }})</option>{% else %}<option value="">Kein Gerät verfügbar</option>{% endfor %}
+            </select></label>
+            <button {% if not available_devices or not persons %}disabled{% endif %}>Ausgeben</button>
+            <p class="error" role="alert" hidden></p>
+          </form>
+        </section>
       </div>
-    </div>
+
+      <section class="box">
+        <h2>Alle Geräte</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Seriennummer</th><th>Typ</th><th>Standort</th><th>Status</th><th>Verfügbarkeit</th></tr></thead>
+            <tbody>
+              {% for d in devices %}
+              <tr>
+                <td><strong>{{ d.serial_number }}</strong>{% if d.note %}<br />{{ d.note }}{% endif %}</td>
+                <td>{{ d.device_type }}</td><td>{{ d.location }}</td>
+                <td>{{ {'ready': 'Einsatzbereit', 'maintenance': 'Wartung', 'retired': 'Ausgemustert'}[d.status] }}</td>
+                <td><span class="badge {% if d.availability == 'frei' %}free{% else %}issued{% endif %}">{{ d.availability }}</span></td>
+              </tr>
+              {% else %}<tr><td colspan="5">Noch keine Geräte vorhanden.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="box">
+        <h2>Aktive Ausleihen</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gerät</th><th>Person</th><th>Ausgabezeit (mit UTC-Offset)</th><th>Aktion</th></tr></thead>
+            <tbody>
+              {% for a in active_assignments %}
+              <tr>
+                <td>{{ a.serial_number }}</td><td>{{ a.person }}</td><td>{{ a.issued_at.strftime('%d.%m.%Y %H:%M %z') }}</td>
+                <td><form method="post" action="/assignments/{{ a.assignment_id }}/return" data-api><button>Zurückgeben</button><p class="error" role="alert" hidden></p></form></td>
+              </tr>
+              {% else %}<tr><td colspan="4">Keine aktiven Ausleihen.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script>
+      document.querySelectorAll('form[data-api]').forEach(form => {
+        form.addEventListener('submit', async event => {
+          event.preventDefault();
+          const button = form.querySelector('button');
+          const errorMessage = form.querySelector('.error');
+          const data = Object.fromEntries(new FormData(form));
+          for (const key of ['device_type_id', 'location_id', 'device_id', 'person_id']) {
+            if (key in data) data[key] = Number(data[key]);
+          }
+          button.disabled = true;
+          errorMessage.hidden = true;
+          try {
+            const response = await fetch(form.action, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+              const result = await response.json().catch(() => ({}));
+              const detail = Array.isArray(result.detail)
+                ? result.detail.map(item => item.msg).join('; ')
+                : result.detail;
+              throw new Error(detail || `Die Anfrage ist fehlgeschlagen (HTTP ${response.status}).`);
+            }
+            window.location.reload();
+          } catch (error) {
+            errorMessage.textContent = error.message;
+            errorMessage.hidden = false;
+            button.disabled = false;
+          }
+        });
+      });
+    </script>
   </body>
 </html>

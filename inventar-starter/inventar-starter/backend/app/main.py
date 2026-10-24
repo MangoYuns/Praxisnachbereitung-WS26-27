@@ -42,8 +42,40 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "title": "Inventar Starter"})
 
 @app.get("/inventory", response_class=HTMLResponse)
-async def inventory_page(request: Request):
-    return templates.TemplateResponse("inventory.html", {"request": request, "title": "Inventar Starter"})
+def inventory_page(request: Request):
+    with get_conn() as conn:
+        devices = conn.execute(
+            """SELECT d.*, t.name AS device_type, l.name AS location,
+                      a.assignment_id,
+                      CASE WHEN a.assignment_id IS NULL THEN 'frei' ELSE 'ausgeliehen' END AS availability
+               FROM device d
+               JOIN device_type t ON t.device_type_id = d.device_type_id
+               JOIN location l ON l.location_id = d.location_id
+               LEFT JOIN assignment a ON a.device_id = d.device_id AND a.returned_at IS NULL
+               ORDER BY d.device_id"""
+        ).fetchall()
+        device_types = conn.execute("SELECT * FROM device_type ORDER BY name").fetchall()
+        locations = conn.execute("SELECT * FROM location ORDER BY name").fetchall()
+        persons = conn.execute("SELECT * FROM person ORDER BY last_name, first_name").fetchall()
+        active_assignments = conn.execute(
+            """SELECT a.*, d.serial_number, p.first_name || ' ' || p.last_name AS person
+               FROM assignment a
+               JOIN device d ON d.device_id = a.device_id
+               JOIN person p ON p.person_id = a.person_id
+               WHERE a.returned_at IS NULL
+               ORDER BY a.issued_at DESC, a.assignment_id DESC"""
+        ).fetchall()
+    available_devices = [d for d in devices if d["assignment_id"] is None and d["status"] == "ready"]
+    return templates.TemplateResponse("inventory.html", {
+        "request": request,
+        "title": "Inventarverwaltung",
+        "devices": devices,
+        "device_types": device_types,
+        "locations": locations,
+        "persons": persons,
+        "active_assignments": active_assignments,
+        "available_devices": available_devices,
+    })
 
 @app.post("/mqtt/publish")
 async def mqtt_publish(topic: str = Query(...), payload: str = Query(...)):
