@@ -57,3 +57,46 @@ Publish über die API:
 ```bash
 curl -X POST "http://localhost:8000/mqtt/publish?topic=inventory/test&payload=hello"
 ```
+
+## G) MQTT-Ereignisse für Ausleihen
+
+Bei einer erfolgreichen Ausgabe sendet die App auf `inventory/assignments/issued`.
+Bei einer erfolgreichen Rückgabe sendet sie auf `inventory/assignments/returned`.
+Die Ereignisse werden nach dem Speichern der Datenbankänderung mit QoS 1 und ohne retain gesendet.
+Abgelehnte Aktionen erzeugen kein Ereignis.
+
+Ein Subscriber kann im Projektverzeichnis gestartet werden:
+
+```powershell
+docker compose exec mqtt mosquitto_sub -h localhost -t "inventory/assignments/#" -v
+```
+
+Mit lokal installiertem mosquitto funktioniert alternativ:
+
+```powershell
+mosquitto_sub -h localhost -p 1883 -t "inventory/assignments/#" -v
+```
+
+Während der Subscriber läuft, unter http://localhost:8000/inventory ein freies Gerät ausgeben und anschließend zurückgeben.
+Im Terminal erscheinen beide Topics mit JSON-Nachrichten, beispielsweise bei einer Ausgabe:
+
+```json
+{
+  "assignment_id": 4,
+  "device_id": 2,
+  "person_id": 1,
+  "issued_at": "2026-10-24T12:00:00+00:00",
+  "returned_at": null
+}
+```
+
+Bei der Rückgabe enthält `returned_at` den Rückgabezeitpunkt.
+Die IDs und Zeitangaben entsprechen jeweils dem tatsächlich gespeicherten Datensatz.
+
+Bei einem Broker-Ausfall bleibt die Datenbankänderung gespeichert. Der Fehler steht im API-Log:
+
+```powershell
+docker compose logs api
+```
+
+Es gibt keine dauerhafte Warteschlange für späteren Versand. QoS 1 kann bei Übertragungswiederholungen Duplikate liefern.
