@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Request, Query, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 import os
+import json
+import logging
 from .db import get_conn
 import paho.mqtt.client as mqtt
 import psycopg
@@ -12,11 +14,37 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 
 MQTT_HOST = os.getenv("MQTT_HOST", "mqtt")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
+logger = logging.getLogger(__name__)
 
 def mqtt_client() -> mqtt.Client:
     c = mqtt.Client()
     c.connect(MQTT_HOST, MQTT_PORT, keepalive=30)
     return c
+
+
+def publish_assignment_event(event: str, assignment: dict):
+    topic = f"inventory/assignments/{event}"
+    payload = {
+        "assignment_id": assignment["assignment_id"],
+        "device_id": assignment["device_id"],
+        "person_id": assignment["person_id"],
+        "issued_at": assignment["issued_at"].isoformat(),
+        "returned_at": assignment["returned_at"].isoformat() if assignment["returned_at"] else None,
+    }
+    client = None
+    try:
+        client = mqtt_client()
+        client.loop_start()
+        message = client.publish(topic, json.dumps(payload), qos=1, retain=False)
+        message.wait_for_publish(timeout=3)
+        if not message.is_published():
+            raise TimeoutError("Der MQTT-Broker hat die Nachricht nicht bestätigt.")
+    except Exception:
+        logger.exception("Ausleihe gespeichert, aber MQTT-Ereignis auf %s konnte nicht gesendet werden.", topic)
+    finally:
+        if client is not None:
+            client.disconnect()
+            client.loop_stop()
 
 @app.get("/health")
 async def health():
@@ -177,7 +205,7 @@ def list_active_assignments():
 
 @app.post("/assignments", response_model=Assignment, status_code=201, tags=["Ausleihen"])
 def create_assignment(data: AssignmentCreate):
-    with get_conn() as conn:
+    with get_conn() as conn, conn.transaction():
         device = conn.execute("SELECT * FROM device WHERE device_id = %s FOR UPDATE", (data.device_id,)).fetchone()
         if device is None:
             raise HTTPException(404, "Gerät nicht gefunden.")
@@ -188,12 +216,13 @@ def create_assignment(data: AssignmentCreate):
                VALUES (%s, %s, COALESCE(%s, now())) RETURNING *""",
             (data.device_id, data.person_id, data.issued_at),
         ).fetchone()
+    publish_assignment_event("issued", assignment)
     return assignment
 
 
 @app.post("/assignments/{assignment_id}/return", response_model=Assignment, tags=["Ausleihen"])
 def return_assignment(assignment_id: int, data: AssignmentReturn | None = None):
-    with get_conn() as conn:
+    with get_conn() as conn, conn.transaction():
         assignment = conn.execute(
             "SELECT * FROM assignment WHERE assignment_id = %s FOR UPDATE", (assignment_id,)
         ).fetchone()
@@ -205,4 +234,5 @@ def return_assignment(assignment_id: int, data: AssignmentReturn | None = None):
             "UPDATE assignment SET returned_at = COALESCE(%s, now()) WHERE assignment_id = %s RETURNING *",
             (data.returned_at if data else None, assignment_id),
         ).fetchone()
+    publish_assignment_event("returned", assignment)
     return assignment
