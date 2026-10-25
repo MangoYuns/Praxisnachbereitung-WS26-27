@@ -8,3 +8,5 @@ paho-mqtt==1.6.1
 python-multipart==0.0.20
 alembic==1.18.4
 SQLAlchemy==2.0.48
+pandas==2.2.3
+XlsxWriter==3.2.5
