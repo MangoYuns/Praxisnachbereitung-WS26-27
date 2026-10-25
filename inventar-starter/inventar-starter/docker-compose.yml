@@ -39,4 +39,6 @@ services:
       - MQTT_PORT=1883
     volumes:
       - ./backend:/app/backend:rw
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./alembic:/app/alembic:ro
       - ./.env:/app/.env:ro

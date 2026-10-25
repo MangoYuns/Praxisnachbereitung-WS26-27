@@ -28,6 +28,7 @@ class AssignmentCreate(InputModel):
 
 class AssignmentReturn(InputModel):
     returned_at: AwareDatetime | None = None
+    damage_note: Annotated[str, StringConstraints(strip_whitespace=True)] | None = None
 
 
 class Assignment(BaseModel):
@@ -36,3 +37,4 @@ class Assignment(BaseModel):
     person_id: int
     issued_at: datetime
     returned_at: datetime | None
+    damage_note: str | None = None

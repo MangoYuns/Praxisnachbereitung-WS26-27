@@ -103,7 +103,7 @@
               {% for a in active_assignments %}
               <tr>
                 <td>{{ a.serial_number }}</td><td>{{ a.person }}</td><td>{{ a.issued_at.strftime('%d.%m.%Y %H:%M %z') }}</td>
-                <td><form method="post" action="/assignments/{{ a.assignment_id }}/return" data-api><button>Zurückgeben</button><p class="error" role="alert" hidden></p></form></td>
+                <td><form method="post" action="/assignments/{{ a.assignment_id }}/return" data-api><label>Schaden-Vermerk (optional)<textarea name="damage_note" rows="2" placeholder="z. B. Display zerkratzt"></textarea></label><button>Zurückgeben</button><p class="error" role="alert" hidden></p></form></td>
               </tr>
               {% else %}<tr><td colspan="4">Keine aktiven Ausleihen.</td></tr>{% endfor %}
             </tbody>

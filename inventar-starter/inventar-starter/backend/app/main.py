@@ -231,8 +231,9 @@ def return_assignment(assignment_id: int, data: AssignmentReturn | None = None):
         if assignment["returned_at"] is not None:
             raise HTTPException(409, "Das Gerät wurde bereits zurückgegeben.")
         assignment = conn.execute(
-            "UPDATE assignment SET returned_at = COALESCE(%s, now()) WHERE assignment_id = %s RETURNING *",
-            (data.returned_at if data else None, assignment_id),
+            """UPDATE assignment SET returned_at = COALESCE(%s, now()), damage_note = %s
+               WHERE assignment_id = %s RETURNING *""",
+            (data.returned_at if data else None, (data.damage_note or None) if data else None, assignment_id),
         ).fetchone()
     publish_assignment_event("returned", assignment)
     return assignment
