@@ -1,0 +1,5 @@
+﻿serial_number;device_type;location_name;person_name;issued_at;returned_at;is_active;damage_note
+LAP-003;Laptop;Gebäude E;Anna Koch;2026-10-24T11:54:56.320537+00:00;2026-10-24T11:55:04.658312+00:00;false;
+LAP-001;Laptop;Gebäude E;Anna Koch;2026-10-23T11:53:01.077122+00:00;;true;
+MON-001;Monitor;Gebäude E;Ben König;2026-10-21T11:53:01.077122+00:00;2026-10-22T11:53:01.077122+00:00;false;
+LAP-002;Laptop;Gebäude F;Clara Meier;2026-10-19T11:53:01.077122+00:00;2026-10-20T11:53:01.077122+00:00;false;

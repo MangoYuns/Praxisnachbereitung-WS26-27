@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException, Request, Query, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
+import csv
+from datetime import datetime, timezone
+from io import BytesIO, StringIO
+import pandas as pd
 import os
 import json
 import logging
@@ -15,6 +19,98 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 MQTT_HOST = os.getenv("MQTT_HOST", "mqtt")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 logger = logging.getLogger(__name__)
+
+
+EXPORT_COLUMNS = (
+    "serial_number", "device_type", "location_name", "person_name",
+    "issued_at", "returned_at", "is_active", "damage_note",
+)
+
+ASSIGNMENT_SQL = """
+    SELECT d.serial_number,
+           t.name AS device_type, l.name AS location_name,
+           p.first_name || ' ' || p.last_name AS person_name,
+           a.issued_at, a.returned_at,
+           (a.returned_at IS NULL) AS is_active, a.damage_note
+    FROM assignment a
+    JOIN device d ON d.device_id = a.device_id
+    JOIN device_type t ON t.device_type_id = d.device_type_id
+    JOIN location l ON l.location_id = d.location_id
+    JOIN person p ON p.person_id = a.person_id
+    ORDER BY a.issued_at DESC, a.assignment_id DESC
+"""
+
+
+def assignment_rows():
+    with get_conn() as conn:
+        return conn.execute(ASSIGNMENT_SQL).fetchall()
+
+
+def csv_value(value):
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat()
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    # Excel soll frei eingegebenen Text nicht als Formel ausführen.
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
+
+@app.get("/assignments.csv", response_class=Response, tags=["Exporte"],
+            responses={200: {"content": {"text/csv": {}}}})
+def assignments_csv():
+    output = StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    writer.writerow(EXPORT_COLUMNS)
+    for row in assignment_rows():
+        writer.writerow([csv_value(row[column]) for column in EXPORT_COLUMNS])
+    return Response(
+        content=output.getvalue().encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="assignments.csv"'},
+    )
+
+
+@app.get("/assignments.xlsx", response_class=Response, tags=["Exporte"],
+            responses={200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}}})
+def assignments_xlsx():
+    frame = pd.DataFrame(assignment_rows(), columns=EXPORT_COLUMNS)
+    # Excel speichert keine Zeitzonen: erst nach UTC umrechnen, dann TZ entfernen.
+    for column in ("issued_at", "returned_at"):
+        frame[column] = pd.to_datetime(frame[column], utc=True).dt.tz_localize(None)
+
+    output = BytesIO()
+    with pd.ExcelWriter(
+        output, engine="xlsxwriter", datetime_format='yyyy-mm-dd hh:mm:ss "UTC"',
+        engine_kwargs={"options": {"strings_to_formulas": False, "strings_to_urls": False}},
+    ) as writer:
+        frame.to_excel(writer, sheet_name="Assignments", index=False)
+        sheet = writer.sheets["Assignments"]
+        sheet.freeze_panes(1, 0)
+        sheet.autofilter(0, 0, len(frame), len(EXPORT_COLUMNS) - 1)
+        sheet.hide_gridlines(2)
+        header_format = writer.book.add_format({
+            "bold": True, "font_color": "#FFFFFF", "bg_color": "#1F4E78",
+            "valign": "vcenter",
+        })
+        sheet.set_row(0, 26)
+        for index, column in enumerate(EXPORT_COLUMNS):
+            sheet.write(0, index, column, header_format)
+            if column in ("issued_at", "returned_at"):
+                width = 27
+            elif column == "damage_note":
+                width = 48
+            else:
+                width = max(len(column), *(len(str(value)) for value in frame[column] if pd.notna(value)), 10) + 2
+                width = min(width, 40)
+            sheet.set_column(index, index, width)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="assignments.xlsx"'},
+    )
 
 def mqtt_client() -> mqtt.Client:
     c = mqtt.Client()
@@ -231,8 +327,9 @@ def return_assignment(assignment_id: int, data: AssignmentReturn | None = None):
         if assignment["returned_at"] is not None:
             raise HTTPException(409, "Das Gerät wurde bereits zurückgegeben.")
         assignment = conn.execute(
-            "UPDATE assignment SET returned_at = COALESCE(%s, now()) WHERE assignment_id = %s RETURNING *",
-            (data.returned_at if data else None, assignment_id),
+            """UPDATE assignment SET returned_at = COALESCE(%s, now()), damage_note = %s
+               WHERE assignment_id = %s RETURNING *""",
+            (data.returned_at if data else None, (data.damage_note or None) if data else None, assignment_id),
         ).fetchone()
     publish_assignment_event("returned", assignment)
     return assignment

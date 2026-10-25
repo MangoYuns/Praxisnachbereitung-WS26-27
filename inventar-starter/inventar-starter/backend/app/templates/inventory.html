@@ -37,7 +37,7 @@
   <body>
     <main class="card">
       <h1>Inventarverwaltung</h1>
-      <nav><a href="/">Startseite</a><a href="/docs">API-Dokumentation</a><a href="/health">Health</a></nav>
+      <nav><a href="/">Startseite</a><a href="/docs">API-Dokumentation</a><a href="/health">Health</a><a href="/assignments.csv">Ausleihen als CSV</a><a href="/assignments.xlsx">Ausleihen als Excel</a></nav>
       <p class="hint">{{ devices|length }} Geräte · {{ available_devices|length }} verfügbar · {{ active_assignments|length }} aktive Ausleihen</p>
       <noscript><p class="error">Zum Absenden der Formulare muss JavaScript aktiviert sein. Alternativ können die Endpunkte über die API-Dokumentation verwendet werden.</p></noscript>
 
@@ -103,7 +103,7 @@
               {% for a in active_assignments %}
               <tr>
                 <td>{{ a.serial_number }}</td><td>{{ a.person }}</td><td>{{ a.issued_at.strftime('%d.%m.%Y %H:%M %z') }}</td>
-                <td><form method="post" action="/assignments/{{ a.assignment_id }}/return" data-api><button>Zurückgeben</button><p class="error" role="alert" hidden></p></form></td>
+                <td><form method="post" action="/assignments/{{ a.assignment_id }}/return" data-api><label>Schaden-Vermerk (optional)<textarea name="damage_note" rows="2" placeholder="z. B. Display zerkratzt"></textarea></label><button>Zurückgeben</button><p class="error" role="alert" hidden></p></form></td>
               </tr>
               {% else %}<tr><td colspan="4">Keine aktiven Ausleihen.</td></tr>{% endfor %}
             </tbody>
