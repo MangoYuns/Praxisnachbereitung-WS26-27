@@ -17,6 +17,7 @@ docker compose up -d --build
 
 - [A: Schaden-Vermerk und Migration](docs/tag4_a.md) - Migration läuft beim API-Start.
 - [B: CSV- und Excel-Export](docs/tag4_b.md) - acht fachliche Spalten ohne IDs.
+- [C: Power Query](docs/tag4_c.md) - Vergleich von Web-Abfrage und Dateimport.
 
 ## MQTT
 
