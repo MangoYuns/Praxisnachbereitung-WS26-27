@@ -1,5 +1,12 @@
 # Inventar Starter
 
+## Tag 4 A: Schaden-Vermerk
+
+Die Rückgabe unterstützt jetzt das optionale Feld `damage_note` in Formular und API.
+Beim Start über `docker compose up -d --build` wird die Alembic-Migration automatisch
+ausgeführt. Die Anleitung mit Begründung und Upgrade-/Downgrade-Demo steht in
+[docs/tag4_a.md](docs/tag4_a.md).
+
 Arbeitsbasis für **Tag 3**. Dieses Projekt ist bewusst **nicht fertig**, sondern soll euch einen praktikablen Einstieg geben:
 
 - Infrastruktur ist vorbereitet
